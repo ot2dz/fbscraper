@@ -287,6 +287,8 @@ Chromium instance is reused per job, and jobs run one at a time from a queue.
 - `/` dashboard: bot status, queue, quick scrape form with live progress
 - `/settings`: Telegram token, allowed chat ids, default/max posts, proxy, timeouts
 - `/jobs`: history, per-job page with post table, JSON download, run log
+- Post table sorting/filtering: by likes, comments, shares or date, minimum
+  comments and free-text search (the job page opens sorted by most comments)
 - Telegram: `/scrape <page_id|url> [posts] [days]`, `/status`, `/last`, `/result <job_id>`, `/id`
 
 ### Environment variables

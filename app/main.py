@@ -11,6 +11,7 @@ from app import db
 from app.auth import COOKIE_NAME, is_logged_in, make_session, verify_password
 from app.config import ADMIN_PASSWORD, ensure_dirs
 from app.jobs import current_job, enqueue, queue_status, start_worker
+from app.posts import SORT_LABELS, sort_and_filter
 from app.scraper_runner import normalize_target
 from app.telegram_bot import bot
 
@@ -272,18 +273,41 @@ async def job_page(request: Request, job_id: str):
     job = db.get_job(job_id)
     if not job:
         return templates.TemplateResponse(request, "job.html", _ctx(request, job=None, posts=[]), status_code=404)
-    posts = []
+    sort = request.query_params.get("sort", "comments")
+    order = request.query_params.get("order", "desc")
+    query = request.query_params.get("q", "")
+    try:
+        min_comments = int(request.query_params.get("min_comments", "0") or 0)
+    except ValueError:
+        min_comments = 0
+    raw_posts = []
     if job.get("result_path") and os.path.exists(job["result_path"]):
         try:
             with open(job["result_path"], encoding="utf-8") as handle:
-                posts = json.load(handle).get("data", [])
+                raw_posts = json.load(handle).get("data", [])
         except Exception:  # noqa: BLE001
-            posts = []
+            raw_posts = []
+    posts = sort_and_filter(raw_posts, sort=sort, order=order, min_comments=min_comments, query=query)
     log_tail = ""
     if job.get("log_path") and os.path.exists(job["log_path"]):
         with open(job["log_path"], encoding="utf-8", errors="replace") as handle:
             log_tail = handle.read()[-4000:]
-    return templates.TemplateResponse(request, "job.html", _ctx(request, job=job, posts=posts, log_tail=log_tail))
+    return templates.TemplateResponse(
+        request,
+        "job.html",
+        _ctx(
+            request,
+            job=job,
+            posts=posts,
+            total_posts=len(raw_posts),
+            sort=sort,
+            order=order,
+            query=query,
+            min_comments=min_comments,
+            sort_labels=SORT_LABELS,
+            log_tail=log_tail,
+        ),
+    )
 
 
 @app.get("/results/{job_id}.json")

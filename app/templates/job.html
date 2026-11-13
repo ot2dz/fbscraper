@@ -19,11 +19,57 @@
   {% if job.result_path %}<p><a href="/results/{{ job.id }}.json">تحميل JSON</a></p>{% endif %}
 </div>
 
+{% if job.result_path %}
+<div class="card">
+  <h2>ترتيب وفلترة المنشورات ({{ posts | length }} من {{ total_posts }})</h2>
+  <form method="get" action="/jobs/{{ job.id }}">
+    <div class="row">
+      <div>
+        <label for="sort">الترتيب حسب</label>
+        <select id="sort" name="sort">
+          {% for key, label in sort_labels.items() %}
+          <option value="{{ key }}" {{ 'selected' if sort == key else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="order">الاتجاه</label>
+        <select id="order" name="order">
+          <option value="desc" {{ 'selected' if order == 'desc' else '' }}>الأعلى أولاً</option>
+          <option value="asc" {{ 'selected' if order == 'asc' else '' }}>الأدنى أولاً</option>
+        </select>
+      </div>
+      <div>
+        <label for="min_comments">أدنى عدد تعليقات</label>
+        <input id="min_comments" name="min_comments" type="number" min="0" value="{{ min_comments }}">
+      </div>
+      <div style="flex:2">
+        <label for="q">بحث في النص</label>
+        <input id="q" name="q" type="text" value="{{ query }}" placeholder="كلمة في نص المنشور">
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+      <button type="submit">تطبيق</button>
+      <a href="/jobs/{{ job.id }}" class="muted" style="font-size:13px">إعادة تعيين</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+
 {% if posts %}
 <div class="card">
-  <h2>المنشورات ({{ posts | length }})</h2>
+  <h2>المنشورات</h2>
   <table>
-    <thead><tr><th>التاريخ</th><th>إعجابات</th><th>تعليقات</th><th>مشاركات</th><th>النص</th><th>الرابط</th></tr></thead>
+    <thead>
+      <tr>
+        <th><a href="/jobs/{{ job.id }}?sort=date&order={{ 'asc' if sort == 'date' and order == 'desc' else 'desc' }}&min_comments={{ min_comments }}&q={{ query | urlencode }}">التاريخ {{ '▲' if sort == 'date' and order == 'asc' else ('▼' if sort == 'date' else '') }}</a></th>
+        <th><a href="/jobs/{{ job.id }}?sort=likes&order={{ 'asc' if sort == 'likes' and order == 'desc' else 'desc' }}&min_comments={{ min_comments }}&q={{ query | urlencode }}">إعجابات {{ '▲' if sort == 'likes' and order == 'asc' else ('▼' if sort == 'likes' else '') }}</a></th>
+        <th><a href="/jobs/{{ job.id }}?sort=comments&order={{ 'asc' if sort == 'comments' and order == 'desc' else 'desc' }}&min_comments={{ min_comments }}&q={{ query | urlencode }}">تعليقات {{ '▲' if sort == 'comments' and order == 'asc' else ('▼' if sort == 'comments' else '') }}</a></th>
+        <th><a href="/jobs/{{ job.id }}?sort=shares&order={{ 'asc' if sort == 'shares' and order == 'desc' else 'desc' }}&min_comments={{ min_comments }}&q={{ query | urlencode }}">مشاركات {{ '▲' if sort == 'shares' and order == 'asc' else ('▼' if sort == 'shares' else '') }}</a></th>
+        <th>النص</th>
+        <th>الرابط</th>
+      </tr>
+    </thead>
     <tbody>
     {% for post in posts %}
       <tr>

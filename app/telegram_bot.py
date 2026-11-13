@@ -2,6 +2,7 @@
 """Minimal Telegram bot (long polling) for the scraper."""
 import asyncio
 import html
+import json
 import os
 
 import httpx
@@ -83,6 +84,19 @@ def send_document(chat_id, path, caption=""):
         print(f"telegram sendDocument failed: {exc}")
 
 
+def _top_posts_by_comments(path, limit=3):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            posts = json.load(handle).get("data", [])
+    except Exception:  # noqa: BLE001
+        return []
+    posts.sort(
+        key=lambda post: post.get("comment_rendering_instance.comments.total_count") or 0,
+        reverse=True,
+    )
+    return posts[:limit]
+
+
 def job_summary_text(job):
     if job["status"] == "done":
         lines = [
@@ -94,6 +108,16 @@ def job_summary_text(job):
             f"المشاركات: {job['shares']}",
             f"job_id: {job['id']}",
         ]
+        top = _top_posts_by_comments(job.get("result_path") or "")
+        if top:
+            lines.append("")
+            lines.append("أعلى المنشورات بالتعليقات:")
+            for index, post in enumerate(top, start=1):
+                text = " ".join(str(post.get("context") or "").split())[:70]
+                lines.append(
+                    f"{index}. {post.get('comment_rendering_instance.comments.total_count') or 0} تعليق / "
+                    f"{post.get('reaction_count.count') or 0} إعجاب — {text}"
+                )
         return "\n".join(lines)
     return f"فشل السحب ❌\njob_id: {job['id']}\n{job['error'] or ''}"[:1500]
 
