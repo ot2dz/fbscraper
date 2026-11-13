@@ -183,7 +183,7 @@ def send_document(chat_id, path, caption=""):
         print(f"telegram sendDocument failed: {exc}")
 
 
-def _top_posts_by_comments(path, limit=3):
+def _top_posts_by_comments(path, limit=5):
     try:
         with open(path, encoding="utf-8") as handle:
             posts = json.load(handle).get("data", [])
@@ -194,6 +194,36 @@ def _top_posts_by_comments(path, limit=3):
         reverse=True,
     )
     return posts[:limit]
+
+
+def top_posts_keyboard(job, limit=5):
+    """Inline buttons linking to the best posts by comment count."""
+    rows = []
+    for index, post in enumerate(_top_posts_by_comments(job.get("result_path") or "", limit), start=1):
+        url = post.get("post_url")
+        if not url:
+            continue
+        comments = post.get("comment_rendering_instance.comments.total_count") or 0
+        likes = post.get("reaction_count.count") or 0
+        rows.append(
+            [{"text": f"{index}. {comments} تعليق / {likes} إعجاب", "url": url}]
+        )
+    return _keyboard(rows) if rows else None
+
+
+def send_top_posts(chat_id, job, limit=5):
+    posts = _top_posts_by_comments(job.get("result_path") or "", limit)
+    if not posts:
+        return
+    lines = [f"أفضل {len(posts)} منشورات حسب التعليقات:"]
+    for index, post in enumerate(posts, start=1):
+        comments = post.get("comment_rendering_instance.comments.total_count") or 0
+        likes = post.get("reaction_count.count") or 0
+        text = " ".join(str(post.get("context") or "").split())[:45]
+        lines.append(f"{index}. {comments} تعليق / {likes} إعجاب — {text}")
+        if post.get("post_url"):
+            lines.append(f"   {post['post_url']}")
+    send_message(chat_id, "\n".join(lines), top_posts_keyboard(job, limit))
 
 
 def job_summary_text(job):
@@ -507,6 +537,7 @@ class TelegramBot:
                 return
             if job["status"] == "done":
                 send_message(chat_id, job_summary_text(job))
+                send_top_posts(chat_id, job)
                 send_document(chat_id, job.get("result_path"), caption="النتيجة الكاملة (JSON)")
             else:
                 send_message(chat_id, f"الحالة: {job['status']}\nالمنشورات: {job['post_count']}")

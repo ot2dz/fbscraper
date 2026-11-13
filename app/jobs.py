@@ -5,7 +5,7 @@ import threading
 
 from app import db
 from app.scraper_runner import run_scrape
-from app.telegram_bot import job_summary_text, send_document, send_message
+from app.telegram_bot import job_summary_text, send_document, send_message, send_top_posts
 
 _queue = queue.Queue()
 _started = False
@@ -38,6 +38,7 @@ def _loop():
         if finished and finished.get("source") == "telegram" and finished.get("chat_id"):
             if finished["status"] == "done":
                 send_message(finished["chat_id"], job_summary_text(finished))
+                send_top_posts(finished["chat_id"], finished)
                 send_document(finished["chat_id"], finished.get("result_path"), caption="النتيجة الكاملة (JSON)")
             else:
                 send_message(finished["chat_id"], job_summary_text(finished))
