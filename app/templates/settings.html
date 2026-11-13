@@ -63,6 +63,15 @@
 </div>
 
 <div class="card">
+  <h2>فحص اتصال البوت</h2>
+  <p class="muted" style="font-size:12px;margin-top:0">
+    يتحقق من التوكن، ويحذف أي webhook قديم يعطّل الاستقبال (البوت يعمل بـ long polling وليس webhook).
+  </p>
+  <button type="button" id="diagBtn" class="secondary">فحص الآن</button>
+  <pre id="diagOut" style="display:none"></pre>
+</div>
+
+<div class="card">
   <h2>متغيرات البيئة (Coolify)</h2>
   <table>
     <tbody>
@@ -75,3 +84,18 @@
   </table>
 </div>
 {% endblock %}
+
+<script>
+document.getElementById('diagBtn').addEventListener('click', async () => {
+  const out = document.getElementById('diagOut');
+  out.style.display = 'block';
+  out.textContent = 'جارٍ الفحص...';
+  const response = await fetch('/api/bot/diagnostics');
+  const data = await response.json();
+  out.textContent = JSON.stringify(data, null, 2);
+  if (data.webhook && data.webhook.url) {
+    await fetch('/api/bot/restart', { method: 'POST' });
+    out.textContent += '\n\nتم حذف webhook وإعادة تشغيل الاستقبال. أرسل /start الآن.';
+  }
+});
+</script>

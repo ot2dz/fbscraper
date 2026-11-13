@@ -128,6 +128,7 @@ class TelegramBot:
         self._offset = 0
         self._username = None
         self._last_error = None
+        self._webhook_url = None
 
     @property
     def running(self):
@@ -140,6 +141,7 @@ class TelegramBot:
             "token_set": bool(db.get_setting("telegram_token", "")),
             "enabled": db.get_setting("telegram_enabled", "1") == "1",
             "last_error": self._last_error,
+            "webhook_url": self._webhook_url,
         }
 
     async def start(self):
@@ -169,7 +171,10 @@ class TelegramBot:
                     )
                     payload = response.json()
                 if not payload.get("ok"):
-                    self._last_error = payload.get("description", "telegram error")
+                    description = payload.get("description", "telegram error")
+                    self._last_error = description
+                    if "webhook" in description.lower() or "409" in str(payload.get("error_code")):
+                        await self._delete_webhook(token)
                     await asyncio.sleep(10)
                     continue
                 self._last_error = None
@@ -184,15 +189,67 @@ class TelegramBot:
                 self._last_error = f"{type(exc).__name__}: {exc}"
                 await asyncio.sleep(10)
 
+    async def _delete_webhook(self, token):
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                payload = (await client.post(
+                    API.format(token=token, method="deleteWebhook"),
+                    json={"drop_pending_updates": False},
+                )).json()
+            if payload.get("ok"):
+                self._webhook_url = ""
+                print("Telegram webhook removed, long polling can receive updates.")
+            else:
+                self._last_error = payload.get("description")
+        except Exception as exc:  # noqa: BLE001
+            self._last_error = str(exc)
+
+    async def diagnostics(self):
+        """Live Telegram API state (used by the settings page)."""
+        token = db.get_setting("telegram_token", "")
+        result = {
+            "token_set": bool(token),
+            "running": self.running,
+            "username": self._username,
+            "last_error": self._last_error,
+        }
+        if not token:
+            return result
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                me = (await client.post(API.format(token=token, method="getMe"))).json()
+                webhook = (await client.post(API.format(token=token, method="getWebhookInfo"))).json()
+                updates = (await client.post(
+                    API.format(token=token, method="getUpdates"),
+                    json={"offset": -1, "limit": 1, "timeout": 0},
+                )).json()
+            result["get_me"] = me.get("result") if me.get("ok") else me.get("description")
+            info = webhook.get("result") or {}
+            result["webhook"] = {
+                "url": info.get("url") or "",
+                "pending_updates": info.get("pending_update_count"),
+                "last_error": info.get("last_error_message"),
+            }
+            result["pending_updates"] = len(updates.get("result") or []) if updates.get("ok") else updates.get("description")
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = f"{type(exc).__name__}: {exc}"
+        return result
+
     async def _refresh_identity(self, token):
         try:
             async with httpx.AsyncClient(timeout=20) as client:
                 response = await client.get(API.format(token=token, method="getMe"))
                 payload = response.json()
-            if payload.get("ok"):
-                self._username = payload["result"].get("username")
-            else:
-                self._last_error = payload.get("description")
+                if payload.get("ok"):
+                    self._username = payload["result"].get("username")
+                else:
+                    self._last_error = payload.get("description")
+                webhook = (await client.post(API.format(token=token, method="getWebhookInfo"))).json()
+            info = webhook.get("result") or {}
+            self._webhook_url = info.get("url") or ""
+            if self._webhook_url:
+                # Long polling and a webhook cannot work together.
+                await self._delete_webhook(token)
         except Exception as exc:  # noqa: BLE001
             self._last_error = str(exc)
 

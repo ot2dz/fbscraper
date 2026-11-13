@@ -249,6 +249,13 @@ async def api_job(request: Request, job_id: str):
     return {"job": job}
 
 
+@app.get("/api/bot/diagnostics")
+async def api_bot_diagnostics(request: Request):
+    if not is_logged_in(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await bot.diagnostics()
+
+
 @app.post("/api/bot/restart")
 async def api_bot_restart(request: Request):
     if not is_logged_in(request):
