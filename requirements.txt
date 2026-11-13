@@ -9,6 +9,11 @@ pytest-mock>=3.12.0
 requests>=2.31
 pandas>=2.0
 
+# Pins required by selenium-wire's bundled mitmproxy
+setuptools<81
+blinker==1.6.2
+pyOpenSSL==22.1.0
+
 # Web UI + Telegram bot
 fastapi>=0.115
 uvicorn[standard]>=0.30
