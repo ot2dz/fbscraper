@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 import os
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -15,13 +15,12 @@ def _seleniumwire_options():
     if not parsed.hostname:
         return {}
     scheme = parsed.scheme or "http"
-    address = f"{scheme}://{parsed.hostname}:{parsed.port or 8080}"
-    config = {"http": address, "https": address, "no_proxy": "localhost,127.0.0.1"}
+    auth = ""
     if parsed.username:
-        config["username"] = unquote(parsed.username)
-    if parsed.password:
-        config["password"] = unquote(parsed.password)
-    return {"proxy": config}
+        password = unquote(parsed.password or "")
+        auth = f"{quote(unquote(parsed.username), safe='')}:{quote(password, safe='')}@"
+    address = f"{scheme}://{auth}{parsed.hostname}:{parsed.port or 8080}"
+    return {"proxy": {"http": address, "https": address, "no_proxy": "localhost,127.0.0.1"}}
 
 
 class BasePage:
