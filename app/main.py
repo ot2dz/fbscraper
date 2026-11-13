@@ -173,7 +173,14 @@ async def api_debug_browser(request: Request, target: str = Form(""), url: str =
         import time as _time
 
         from app.config import CHROMEDRIVER_PATH
+        from app.scraper_runner import normalize_proxy
         from fb_graphql_scraper.base.base_page import BasePage
+
+        proxy = normalize_proxy(db.get_setting("proxy", ""))
+        if proxy:
+            os.environ["FB_PROXY"] = proxy
+        else:
+            os.environ.pop("FB_PROXY", None)
 
         page = BasePage(driver_path=CHROMEDRIVER_PATH, open_browser=False)
         try:
@@ -212,8 +219,10 @@ async def api_debug_http(request: Request, url: str = Form(...)):
     def work():
         import requests
 
+        from app.scraper_runner import normalize_proxy
+
         kwargs = {"timeout": 30, "allow_redirects": True}
-        proxy = db.get_setting("proxy", "")
+        proxy = normalize_proxy(db.get_setting("proxy", ""))
         if proxy:
             kwargs["proxies"] = {"http": proxy, "https": proxy}
         response = requests.get(url, **kwargs)

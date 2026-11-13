@@ -30,6 +30,20 @@ def normalize_target(raw: str) -> str:
     return value
 
 
+def normalize_proxy(raw: str) -> str:
+    """Accept host:port:user:pass, host:port or a full URL."""
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    if "://" in value:
+        return value
+    parts = value.split(":")
+    if len(parts) == 4:
+        host, port, user, password = parts
+        return f"http://{user}:{password}@{host}:{port}"
+    return f"http://{value}"
+
+
 def _patch_requests():
     """Default timeout (and optional proxy) for the plain HTTP pagination calls."""
     global _requests_patched
@@ -40,7 +54,7 @@ def _patch_requests():
 
     def _kwargs():
         kw = {"timeout": int(db.get_setting("request_timeout", "30"))}
-        proxy = db.get_setting("proxy", "")
+        proxy = normalize_proxy(db.get_setting("proxy", ""))
         if proxy:
             kw["proxies"] = {"http": proxy, "https": proxy}
         return kw
@@ -106,7 +120,7 @@ def run_scrape(job):
     log_path = os.path.join(LOGS_DIR, f"{job['id']}.log")
     result_path = os.path.join(RESULTS_DIR, f"{job['id']}.json")
 
-    proxy = db.get_setting("proxy", "")
+    proxy = normalize_proxy(db.get_setting("proxy", ""))
     if proxy:
         os.environ["FB_PROXY"] = proxy
     else:
