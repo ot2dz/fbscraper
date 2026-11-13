@@ -1,4 +1,12 @@
 **/__pycache__/
+**/*.pyc
 .DS_Store
 .pypirc
 .env
+.venv/
+data/
+.pytest_cache/
+*.log
+result*.json
+page_*.json
+facebook_graphql_scraper.egg-info/

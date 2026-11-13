@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}العملية {{ job.id if job else '' }}{% endblock %}
+{% block content %}
+{% if not job %}
+<div class="card"><h2>غير موجودة</h2><p class="muted">لا توجد عملية بهذا المعرّف.</p></div>
+{% else %}
+<div class="card">
+  <h2>العملية {{ job.id }}</h2>
+  <div class="grid">
+    <div class="stat"><div class="label">الحالة</div><div class="value"><span class="badge {{ job.status }}">{{ job.status }}</span></div></div>
+    <div class="stat"><div class="label">الصفحة</div><div class="value" style="font-size:14px">{{ job.target }}</div></div>
+    <div class="stat"><div class="label">المنشورات</div><div class="value">{{ job.post_count }}</div></div>
+    <div class="stat"><div class="label">الإعجابات / التعليقات / المشاركات</div><div class="value" style="font-size:14px">{{ job.likes }} / {{ job.comments }} / {{ job.shares }}</div></div>
+  </div>
+  <p class="muted" style="font-size:12px;margin-top:14px">
+    المصدر: {{ job.source }} — الفترة: {{ job.oldest or '—' }} → {{ job.newest or '—' }} — بدأ: {{ job.started_at or '—' }} — انتهى: {{ job.finished_at or '—' }}
+  </p>
+  {% if job.error %}<div class="alert bad">{{ job.error }}</div>{% endif %}
+  {% if job.result_path %}<p><a href="/results/{{ job.id }}.json">تحميل JSON</a></p>{% endif %}
+</div>
+
+{% if posts %}
+<div class="card">
+  <h2>المنشورات ({{ posts | length }})</h2>
+  <table>
+    <thead><tr><th>التاريخ</th><th>إعجابات</th><th>تعليقات</th><th>مشاركات</th><th>النص</th><th>الرابط</th></tr></thead>
+    <tbody>
+    {% for post in posts %}
+      <tr>
+        <td class="muted">{{ post.published_date2 or '—' }}</td>
+        <td>{{ post['reaction_count.count'] or 0 }}</td>
+        <td>{{ post['comment_rendering_instance.comments.total_count'] or 0 }}</td>
+        <td>{{ post['share_count.count'] or 0 }}</td>
+        <td class="clamp" title="{{ post.context or '' }}">{{ (post.context or '')[:90] }}</td>
+        <td><a href="{{ post.post_url }}" target="_blank" rel="noopener">فتح</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if log_tail %}
+<div class="card">
+  <h2>سجل التشغيل</h2>
+  <pre>{{ log_tail }}</pre>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

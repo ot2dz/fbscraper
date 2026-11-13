@@ -275,3 +275,58 @@ if __name__ == "__main__":
 ## To-Do
 
 - Login-based scraping
+---
+
+## Web UI + Telegram bot (Docker / Coolify)
+
+This fork adds a small web panel and a Telegram bot around the scraper. One
+Chromium instance is reused per job, and jobs run one at a time from a queue.
+
+### What you get
+
+- `/` dashboard: bot status, queue, quick scrape form with live progress
+- `/settings`: Telegram token, allowed chat ids, default/max posts, proxy, timeouts
+- `/jobs`: history, per-job page with post table, JSON download, run log
+- Telegram: `/scrape <page_id|url> [posts] [days]`, `/status`, `/last`, `/result <job_id>`, `/id`
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ADMIN_PASSWORD` | `admin` | Password for the web panel (change it!) |
+| `SECRET_KEY` | auto | Session cookie signing key (persisted in the DB if unset) |
+| `DATA_DIR` | `/data` | SQLite DB, JSON results and logs (mount a volume) |
+| `CHROME_BIN` | `/usr/bin/chromium` | Chromium binary inside the container |
+| `CHROMEDRIVER_PATH` | `/usr/bin/chromedriver` | chromedriver path inside the container |
+| `PORT` | `8000` | HTTP port |
+| `SCRAPE_TIME_LIMIT` | `1800` | Reserved for the worker timeout |
+
+Telegram token and chat ids are configured from `/settings` (stored in SQLite on
+the volume), so no redeploy is needed after changing them.
+
+### Docker
+
+```bash
+docker build -t fbscraper .
+docker run -d --name fbscraper -p 8000:8000 \
+  -e ADMIN_PASSWORD=change-me \
+  -v fbscraper_data:/data \
+  --shm-size=1g \
+  fbscraper
+```
+
+### Coolify
+
+1. Create an application from this repository, build pack **Dockerfile**, port `8000`.
+2. Add `ADMIN_PASSWORD` (and optionally `SECRET_KEY`).
+3. Add a persistent volume mounted at `/data`.
+4. Set `shm_size` to `1g` if your Coolify version exposes it (Chromium needs it).
+5. Deploy, open the domain, log in, then paste the BotFather token in `/settings`.
+
+### Notes
+
+- Keep a single worker (`--workers 1`): one Chromium at a time, and Telegram long
+  polling does not allow multiple pollers.
+- Public pages work without a Facebook account. Private profiles still require
+  login, which is not exposed by the web UI on purpose.
+- Datacenter IPs can be blocked by Meta; use the proxy field if you hit that.

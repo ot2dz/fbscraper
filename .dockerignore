@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+venv
+data
+*.log
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.idea
+.vscode
+result*.json
+page_*.json
+run_*.log
+.env

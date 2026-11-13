@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}الإعدادات{% endblock %}
+{% block content %}
+
+{% if saved %}<div class="alert ok">تم حفظ الإعدادات وإعادة تشغيل البوت.</div>{% endif %}
+
+<div class="card">
+  <h2>بوت تلجرام</h2>
+  <form method="post" action="/settings">
+    <label for="telegram_token">Bot Token (من @BotFather)</label>
+    <input id="telegram_token" name="telegram_token" type="password" value="{{ settings.telegram_token }}" placeholder="123456:ABC-DEF...">
+    <div class="muted" style="font-size:12px;margin-top:6px">يُخزَّن في قاعدة البيانات على القرص الدائم (volume).</div>
+
+    <div class="row" style="margin-top:8px">
+      <div>
+        <label>تشغيل البوت</label>
+        <select name="telegram_enabled">
+          <option value="1" {{ 'selected' if settings.telegram_enabled == '1' else '' }}>مُفعّل</option>
+          <option value="0" {{ 'selected' if settings.telegram_enabled != '1' else '' }}>متوقف</option>
+        </select>
+      </div>
+      <div>
+        <label>السماح للجميع</label>
+        <select name="telegram_allow_all">
+          <option value="1" {{ 'selected' if settings.telegram_allow_all == '1' else '' }}>نعم (أي محادثة)</option>
+          <option value="0" {{ 'selected' if settings.telegram_allow_all != '1' else '' }}>لا (المعرّفات فقط)</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="telegram_allowed_ids">معرّفات المحادثات المسموحة (مفصولة بفاصلة)</label>
+    <input id="telegram_allowed_ids" name="telegram_allowed_ids" type="text" value="{{ settings.telegram_allowed_ids }}" placeholder="123456789,987654321">
+    <div class="muted" style="font-size:12px;margin-top:6px">أرسل /id للبوت لمعرفة معرّف محادثتك.</div>
+
+    <h2 style="margin-top:26px">إعدادات السحب</h2>
+    <div class="row">
+      <div>
+        <label for="default_posts">عدد المنشورات الافتراضي</label>
+        <input id="default_posts" name="default_posts" type="number" min="1" value="{{ settings.default_posts }}">
+      </div>
+      <div>
+        <label for="max_posts">الحد الأقصى للمنشورات</label>
+        <input id="max_posts" name="max_posts" type="number" min="1" value="{{ settings.max_posts }}">
+      </div>
+      <div>
+        <label for="default_days">عدد الأيام الافتراضي</label>
+        <input id="default_days" name="default_days" type="number" min="1" value="{{ settings.default_days }}">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="proxy">بروكسي (اختياري)</label>
+        <input id="proxy" name="proxy" type="text" value="{{ settings.proxy }}" placeholder="http://user:pass@host:port">
+      </div>
+      <div>
+        <label for="request_timeout">مهلة الطلبات (ثانية)</label>
+        <input id="request_timeout" name="request_timeout" type="number" min="5" value="{{ settings.request_timeout }}">
+      </div>
+    </div>
+
+    <div style="margin-top:20px"><button type="submit">حفظ</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>متغيرات البيئة (Coolify)</h2>
+  <table>
+    <tbody>
+      <tr><td><code>ADMIN_PASSWORD</code></td><td class="muted">كلمة مرور هذه اللوحة (إلزامية في الإنتاج)</td></tr>
+      <tr><td><code>SECRET_KEY</code></td><td class="muted">مفتاح توقيع الجلسات (اختياري، يُولَّد تلقائياً)</td></tr>
+      <tr><td><code>DATA_DIR</code></td><td class="muted">مسار التخزين الدائم (افتراضي <code>/data</code>)</td></tr>
+      <tr><td><code>CHROME_BIN</code></td><td class="muted">مسار Chromium داخل الحاوية</td></tr>
+      <tr><td><code>CHROMEDRIVER_PATH</code></td><td class="muted">مسار chromedriver داخل الحاوية</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

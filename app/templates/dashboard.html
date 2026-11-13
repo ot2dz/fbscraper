@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}الرئيسية{% endblock %}
+{% block content %}
+
+{% if default_admin_password %}
+<div class="alert warn">تنبيه: كلمة مرور اللوحة لا تزال القيمة الافتراضية <code>admin</code>. غيّر المتغير <code>ADMIN_PASSWORD</code> في Coolify.</div>
+{% endif %}
+
+<div class="card">
+  <h2>الحالة</h2>
+  <div class="grid">
+    <div class="stat">
+      <div class="label">بوت تلجرام</div>
+      <div class="value {{ 'ok' if bot.running else 'bad' }}">{{ 'يعمل' if bot.running else 'متوقف' }}</div>
+      <div class="muted" style="font-size:12px;margin-top:6px">
+        {% if bot.username %}@{{ bot.username }}{% elif not bot.token_set %}لم يتم إضافة التوكن{% else %}{{ bot.last_error or 'لا يوجد اتصال' }}{% endif %}
+      </div>
+    </div>
+    <div class="stat">
+      <div class="label">قيد التنفيذ</div>
+      <div class="value">{{ current or '—' }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">آخر 15 عملية</div>
+      <div class="value">{{ jobs | length }}</div>
+    </div>
+    <div class="stat">
+      <div class="label">الصفحة الرئيسية</div>
+      <div class="value" style="font-size:14px;font-weight:400">{{ settings.default_posts }} منشور / {{ settings.default_days }} يوم</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>سحب جديد</h2>
+  <form id="scrapeForm">
+    <div class="row">
+      <div style="flex:2">
+        <label for="target">معرّف الصفحة أو الرابط</label>
+        <input id="target" name="target" type="text" placeholder="100088686736411 أو https://facebook.com/page" required>
+      </div>
+      <div>
+        <label for="posts">عدد المنشورات</label>
+        <input id="posts" name="posts" type="number" min="1" max="{{ settings.max_posts }}" value="{{ settings.default_posts }}">
+      </div>
+      <div>
+        <label for="days">عدد الأيام</label>
+        <input id="days" name="days" type="number" min="1" value="{{ settings.default_days }}">
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
+      <button type="submit" id="submitBtn">ابدأ السحب</button>
+      <span id="formStatus" class="muted"></span>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>أحدث العمليات</h2>
+  <table>
+    <thead><tr><th>job_id</th><th>الصفحة</th><th>الحالة</th><th>المنشورات</th><th>إعجابات</th><th>التاريخ</th></tr></thead>
+    <tbody>
+    {% for job in jobs %}
+      <tr>
+        <td><a href="/jobs/{{ job.id }}">{{ job.id }}</a></td>
+        <td class="clamp">{{ job.target }}</td>
+        <td><span class="badge {{ job.status }}">{{ job.status }}</span></td>
+        <td>{{ job.post_count }}</td>
+        <td>{{ job.likes }}</td>
+        <td class="muted">{{ job.created_at }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">لا توجد عمليات بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+const form = document.getElementById('scrapeForm');
+const statusEl = document.getElementById('formStatus');
+const btn = document.getElementById('submitBtn');
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  btn.disabled = true;
+  statusEl.textContent = 'جاري الإرسال...';
+  const body = new URLSearchParams(new FormData(form));
+  const response = await fetch('/api/scrape', { method: 'POST', body });
+  const payload = await response.json();
+  if (!response.ok) {
+    statusEl.textContent = payload.error || 'خطأ';
+    btn.disabled = false;
+    return;
+  }
+  const id = payload.job.id;
+  statusEl.innerHTML = `job_id: <a href="/jobs/${id}">${id}</a> — في الانتظار...`;
+  const poll = setInterval(async () => {
+    const res = await fetch(`/api/jobs/${id}`);
+    const data = await res.json();
+    const job = data.job;
+    if (!job) return;
+    statusEl.textContent = `job_id: ${id} — ${job.status}` + (job.status === 'running' ? ' (يفتح المتصفح ويسحب...)' : '');
+    if (job.status === 'done' || job.status === 'failed') {
+      clearInterval(poll);
+      btn.disabled = false;
+      window.location.href = `/jobs/${id}`;
+    }
+  }, 3000);
+});
+</script>
+{% endblock %}

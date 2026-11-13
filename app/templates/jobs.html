@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}العمليات{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>كل العمليات</h2>
+  <table>
+    <thead><tr><th>job_id</th><th>الصفحة</th><th>المصدر</th><th>الحالة</th><th>المنشورات</th><th>إعجابات</th><th>بدأ</th></tr></thead>
+    <tbody>
+    {% for job in jobs %}
+      <tr>
+        <td><a href="/jobs/{{ job.id }}">{{ job.id }}</a></td>
+        <td class="clamp">{{ job.target }}</td>
+        <td class="muted">{{ job.source }}</td>
+        <td><span class="badge {{ job.status }}">{{ job.status }}</span></td>
+        <td>{{ job.post_count }}</td>
+        <td>{{ job.likes }}</td>
+        <td class="muted">{{ job.started_at or job.created_at }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="muted">لا توجد عمليات بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

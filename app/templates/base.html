@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}FB Scraper Bot{% endblock %}</title>
+<style>
+  :root { --bg:#0f1216; --panel:#171b22; --line:#252b35; --text:#e7ecf3; --muted:#8b97a8; --accent:#2f81f7; --ok:#2ea043; --bad:#da3633; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif; }
+  header { display:flex; align-items:center; gap:18px; padding:14px 22px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  nav { display:flex; gap:14px; flex:1; }
+  nav a { color:var(--muted); text-decoration:none; font-size:14px; }
+  nav a:hover, nav a.active { color:var(--text); }
+  main { max-width:1100px; margin:0 auto; padding:24px 18px 60px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; }
+  .card h2 { margin:0 0 14px; font-size:15px; font-weight:600; }
+  .grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
+  .stat { background:#12161c; border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .stat .label { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  .stat .value { font-size:20px; font-weight:600; }
+  label { display:block; font-size:13px; color:var(--muted); margin:12px 0 6px; }
+  input[type=text], input[type=password], input[type=number], select { width:100%; padding:10px 12px; background:#0d1117; border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:14px; }
+  input:focus { outline:none; border-color:var(--accent); }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:150px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 18px; font-size:14px; cursor:pointer; }
+  button.secondary { background:#21262d; border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:right; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  a { color:var(--accent); }
+  .badge { display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; border:1px solid var(--line); }
+  .badge.done { color:var(--ok); border-color:#1c3d2a; background:#12251a; }
+  .badge.failed { color:var(--bad); border-color:#4a1f1e; background:#2a1312; }
+  .badge.running { color:var(--warn); border-color:#4a3a12; background:#2a2210; }
+  .badge.queued { color:var(--muted); }
+  .muted { color:var(--muted); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .alert { padding:12px 14px; border-radius:8px; margin-bottom:16px; font-size:13px; }
+  .alert.warn { background:#2a2210; border:1px solid #4a3a12; color:#e3b341; }
+  .alert.ok { background:#12251a; border:1px solid #1c3d2a; color:#56d364; }
+  .alert.bad { background:#2a1312; border:1px solid #4a1f1e; color:#f85149; }
+  pre { background:#0d1117; border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; font-size:12px; max-height:340px; direction:ltr; text-align:left; }
+  .clamp { max-width:520px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  form.inline { display:inline; }
+  .login { max-width:380px; margin:12vh auto; }
+</style>
+</head>
+<body>
+{% if show_nav is not defined or show_nav %}
+<header>
+  <h1>FB Scraper Bot</h1>
+  <nav>
+    <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">الرئيسية</a>
+    <a href="/jobs" class="{{ 'active' if request.url.path.startswith('/jobs') else '' }}">العمليات</a>
+    <a href="/settings" class="{{ 'active' if request.url.path == '/settings' else '' }}">الإعدادات</a>
+  </nav>
+  <form method="post" action="/logout"><button class="secondary" type="submit">خروج</button></form>
+</header>
+{% endif %}
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

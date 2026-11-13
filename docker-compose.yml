@@ -1,0 +1,13 @@
+services:
+  fbscraper:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      SECRET_KEY: ${SECRET_KEY:-}
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    shm_size: "1gb"
+    restart: unless-stopped
