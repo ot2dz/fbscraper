@@ -13,6 +13,7 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 CHROME_BIN = os.environ.get("CHROME_BIN", "")
 CHROMEDRIVER_PATH = os.environ.get("CHROMEDRIVER_PATH", "") or None
 SCRAPE_TIME_LIMIT = int(os.environ.get("SCRAPE_TIME_LIMIT", "1800"))
+PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")
 
 DEFAULTS = {
     "telegram_token": "",

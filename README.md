@@ -289,7 +289,8 @@ Chromium instance is reused per job, and jobs run one at a time from a queue.
 - `/jobs`: history, per-job page with post table, JSON download, run log
 - Post table sorting/filtering: by likes, comments, shares or date, minimum
   comments and free-text search (the job page opens sorted by most comments)
-- Telegram: `/scrape <page_id|url> [posts] [days]`, `/status`, `/last`, `/result <job_id>`, `/id`
+- Telegram: inline buttons for new scrape (choose posts/days), last jobs, queue
+  status and help — no commands needed (`/scrape`, `/status` still work)
 
 ### Environment variables
 
