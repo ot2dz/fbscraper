@@ -155,6 +155,18 @@ def run_scrape(job):
             last_error = exc
             with open(log_path, "a", encoding="utf-8", errors="replace") as log_file:
                 log_file.write(f"\n!!! attempt {attempt} failed: {type(exc).__name__}: {exc}\n")
+                if spider is not None:
+                    try:
+                        driver = spider.page_optional.driver
+                        log_file.write(f"current_url={driver.current_url}\ntitle={driver.title}\n")
+                        log_file.write("requests:\n")
+                        for request in list(driver.requests)[:25]:
+                            log_file.write(f"  {request.method} {request.url[:200]}\n")
+                        log_file.write("page_source:\n")
+                        log_file.write(driver.page_source[:3000])
+                        log_file.write("\n")
+                    except Exception as debug_exc:  # noqa: BLE001
+                        log_file.write(f"debug dump failed: {debug_exc}\n")
             time.sleep(3)
         finally:
             if spider is not None:

@@ -153,6 +153,48 @@ async def api_scrape(
     return {"job": job}
 
 
+@app.post("/api/debug/browser")
+async def api_debug_browser(request: Request, target: str = Form(...)):
+    """Open the page in Chromium and report what Facebook served (no scraping)."""
+    if not is_logged_in(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    try:
+        clean_target = normalize_target(target)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    def work():
+        import time as _time
+
+        from app.config import CHROMEDRIVER_PATH
+        from fb_graphql_scraper.base.base_page import BasePage
+
+        page = BasePage(driver_path=CHROMEDRIVER_PATH, open_browser=False)
+        try:
+            page.driver.get(f"https://www.facebook.com/{clean_target}?locale=en_us")
+            _time.sleep(12)
+            requests_seen = [
+                f"{req.method} {req.url[:180]}" for req in list(page.driver.requests)[:40]
+            ]
+            return {
+                "url": page.driver.current_url,
+                "title": page.driver.title,
+                "requests": len(page.driver.requests),
+                "request_list": requests_seen,
+                "source_length": len(page.driver.page_source),
+                "source_head": page.driver.page_source[:1500],
+            }
+        finally:
+            try:
+                page.quit_driver()
+            except Exception:  # noqa: BLE001
+                pass
+
+    from fastapi.concurrency import run_in_threadpool
+
+    return await run_in_threadpool(work)
+
+
 @app.get("/api/jobs/{job_id}")
 async def api_job(request: Request, job_id: str):
     if not is_logged_in(request):
