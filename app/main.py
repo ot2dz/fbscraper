@@ -154,14 +154,20 @@ async def api_scrape(
 
 
 @app.post("/api/debug/browser")
-async def api_debug_browser(request: Request, target: str = Form(...)):
-    """Open the page in Chromium and report what Facebook served (no scraping)."""
+async def api_debug_browser(request: Request, target: str = Form(""), url: str = Form("")):
+    """Open a page in Chromium and report what Facebook served (no scraping)."""
     if not is_logged_in(request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-    try:
-        clean_target = normalize_target(target)
-    except ValueError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
+    if url:
+        if not url.startswith("https://"):
+            return JSONResponse({"error": "url must start with https://"}, status_code=400)
+        page_url = url
+    else:
+        try:
+            clean_target = normalize_target(target)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        page_url = f"https://www.facebook.com/{clean_target}?locale=en_us"
 
     def work():
         import time as _time
@@ -171,7 +177,7 @@ async def api_debug_browser(request: Request, target: str = Form(...)):
 
         page = BasePage(driver_path=CHROMEDRIVER_PATH, open_browser=False)
         try:
-            page.driver.get(f"https://www.facebook.com/{clean_target}?locale=en_us")
+            page.driver.get(page_url)
             _time.sleep(12)
             requests_seen = [
                 f"{req.method} {req.url[:180]}" for req in list(page.driver.requests)[:40]
@@ -189,6 +195,34 @@ async def api_debug_browser(request: Request, target: str = Form(...)):
                 page.quit_driver()
             except Exception:  # noqa: BLE001
                 pass
+
+    from fastapi.concurrency import run_in_threadpool
+
+    return await run_in_threadpool(work)
+
+
+@app.post("/api/debug/http")
+async def api_debug_http(request: Request, url: str = Form(...)):
+    """Plain HTTP request (uses the configured proxy) to see what Meta returns."""
+    if not is_logged_in(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if not url.startswith("https://"):
+        return JSONResponse({"error": "url must start with https://"}, status_code=400)
+
+    def work():
+        import requests
+
+        kwargs = {"timeout": 30, "allow_redirects": True}
+        proxy = db.get_setting("proxy", "")
+        if proxy:
+            kwargs["proxies"] = {"http": proxy, "https": proxy}
+        response = requests.get(url, **kwargs)
+        return {
+            "status": response.status_code,
+            "final_url": response.url,
+            "length": len(response.content),
+            "head": response.text[:1200],
+        }
 
     from fastapi.concurrency import run_in_threadpool
 

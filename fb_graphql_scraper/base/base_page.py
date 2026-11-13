@@ -1,14 +1,38 @@
 # -*- coding:utf-8 -*-
 import os
+from urllib.parse import unquote, urlparse
 
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.service import Service
+
+
+def _seleniumwire_options():
+    """Route the browser through FB_PROXY (upstream proxy for selenium-wire)."""
+    proxy = os.environ.get("FB_PROXY")
+    if not proxy:
+        return {}
+    parsed = urlparse(proxy if "://" in proxy else f"http://{proxy}")
+    if not parsed.hostname:
+        return {}
+    scheme = parsed.scheme or "http"
+    address = f"{scheme}://{parsed.hostname}:{parsed.port or 8080}"
+    config = {"http": address, "https": address, "no_proxy": "localhost,127.0.0.1"}
+    if parsed.username:
+        config["username"] = unquote(parsed.username)
+    if parsed.password:
+        config["password"] = unquote(parsed.password)
+    return {"proxy": config}
+
 
 class BasePage:
     def __init__(self, driver_path: str, open_browser: bool = False):
         chrome_options = self._build_options(open_browser)
         service = Service(driver_path)
-        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.driver = webdriver.Chrome(
+            service=service,
+            options=chrome_options,
+            seleniumwire_options=_seleniumwire_options(),
+        )
         if open_browser:
             self.driver.maximize_window()
         else:
@@ -27,9 +51,6 @@ class BasePage:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
-        proxy = os.environ.get("FB_PROXY")
-        if proxy:
-            options.add_argument(f"--proxy-server={proxy}")
         if not open_browser:
             options.add_argument("--headless=new")
         options.add_argument("--blink-settings=imagesEnabled=false")
