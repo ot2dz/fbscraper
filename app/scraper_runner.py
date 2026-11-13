@@ -6,6 +6,7 @@ import math
 import os
 import re
 import time
+from urllib.parse import parse_qs, unquote, urlparse
 
 import fb_graphql_scraper.facebook_graphql_scraper as scraper_module
 from fb_graphql_scraper.facebook_graphql_scraper import FacebookGraphqlScraper
@@ -15,19 +16,132 @@ from app.config import CHROMEDRIVER_PATH, LOGS_DIR, RESULTS_DIR
 
 _requests_patched = False
 
+FACEBOOK_HOSTS = ("facebook.com", "fb.com", "fb.me", "facebook.net")
+UNSUPPORTED_PATHS = {
+    "groups",
+    "watch",
+    "reel",
+    "reels",
+    "video",
+    "videos",
+    "events",
+    "marketplace",
+    "gaming",
+    "story.php",
+    "permalink.php",
+    "photo.php",
+    "media",
+    "login",
+    "login.php",
+    "home.php",
+    "friends",
+    "photos",
+    "about",
+    "help",
+    "policies",
+    "privacy",
+    "settings",
+    "notifications",
+    "messages",
+    "bookmarks",
+    "saved",
+    "memories",
+    "fundraisers",
+    "business",
+    "donate",
+    "offers",
+    "jobs",
+    "places",
+    "hashtag",
+    "search",
+}
+
 
 def normalize_target(raw: str) -> str:
-    """Accept a page id, a username or a facebook url."""
-    value = (raw or "").strip()
-    value = re.sub(r"^https?://", "", value, flags=re.I)
-    value = re.sub(r"^(www\.|m\.|web\.)?facebook\.com/", "", value, flags=re.I)
-    value = value.split("?")[0].split("#")[0].strip("/")
-    value = value.split("/")[0]
-    if value.lower() in {"profile.php", "people", "pages"}:
-        raise ValueError("استخدم رابطاً كاملاً أو معرّف الصفحة الرقمي")
+    """Accept any facebook page/profile url, a username or a numeric id.
+
+    Returns a username/id, or the original short url (fb.me, /share/...) that
+    the worker resolves over HTTP before scraping.
+    """
+    value = (raw or "").strip().strip("<>").strip()
     if not value:
+        raise ValueError("أرسل معرّف الصفحة أو رابطها")
+    if value.startswith("@"):
+        value = value[1:]
+
+    if not re.match(r"^[a-z][a-z0-9+.-]*://", value, flags=re.I) and re.search(
+        r"(facebook\.com|fb\.me|fb\.com|facebook\.net)/", value, flags=re.I
+    ):
+        value = "https://" + value
+
+    if "://" in value:
+        parsed = urlparse(value)
+        host = (parsed.netloc or "").lower().split(":")[0]
+        path = parsed.path.strip("/")
+        query = parse_qs(parsed.query)
+
+        if host.endswith("l.facebook.com") or host.endswith("lm.facebook.com"):
+            redirected = (query.get("u") or [""])[0]
+            if redirected:
+                return normalize_target(redirected)
+            raise ValueError("رابط تحويل غير صالح")
+
+        if not any(host == item or host.endswith("." + item) for item in FACEBOOK_HOSTS):
+            raise ValueError("الرابط ليس من فيسبوك")
+
+        if host.endswith("fb.me") or path.startswith("share/") or path.startswith("share."):
+            return value
+
+        if path.startswith("profile.php"):
+            profile_id = (query.get("id") or [""])[0]
+            if profile_id.isdigit():
+                return profile_id
+            raise ValueError("رابط profile.php بدون معرّف")
+
+        parts = [part for part in path.split("/") if part]
+        if not parts:
+            raise ValueError("الرابط لا يحتوي على صفحة")
+
+        head = parts[0].lower()
+        if head in {"people", "pages"}:
+            for part in reversed(parts):
+                if part.isdigit():
+                    return part
+            trailing = re.search(r"(\d{5,})$", parts[-1])
+            if trailing:
+                return trailing.group(1)
+            return unquote(parts[-1])
+
+        if head in UNSUPPORTED_PATHS:
+            raise ValueError("هذا النوع من الروابط غير مدعوم (مجموعة/فيديو/حدث...)")
+
+        if parts[0].isdigit():
+            return parts[0]
+        return unquote(parts[0])
+
+    cleaned = value.split("?")[0].split("#")[0].strip("/")
+    if not cleaned:
         raise ValueError("معرّف الصفحة غير صالح")
-    return value
+    if cleaned.isdigit():
+        return cleaned
+    if re.fullmatch(r"[A-Za-z0-9._\-]+", cleaned):
+        return cleaned
+    raise ValueError("معرّف أو رابط غير صالح")
+
+
+def resolve_target(raw: str, timeout: int = 25) -> str:
+    """Resolve short links (fb.me, /share/...) then return the final target."""
+    target = normalize_target(raw)
+    for _ in range(3):
+        if not target.startswith("http"):
+            return target
+        proxy = normalize_proxy(db.get_setting("proxy", ""))
+        kwargs = {"allow_redirects": True, "timeout": timeout}
+        if proxy:
+            kwargs["proxies"] = {"http": proxy, "https": proxy}
+        response = scraper_module.requests.get(target, **kwargs)
+        target = normalize_target(response.url)
+    return target
 
 
 def normalize_proxy(raw: str) -> str:
@@ -127,6 +241,20 @@ def run_scrape(job):
         os.environ.pop("FB_PROXY", None)
 
     db.update_job(job["id"], status="running", started_at=time.strftime("%Y-%m-%d %H:%M:%S"), log_path=log_path)
+
+    try:
+        target = resolve_target(job["target"])
+    except Exception as exc:  # noqa: BLE001
+        db.update_job(
+            job["id"],
+            status="failed",
+            finished_at=time.strftime("%Y-%m-%d %H:%M:%S"),
+            error=f"رابط غير صالح: {exc}"[:500],
+        )
+        return None
+    if target != job["target"]:
+        db.update_job(job["id"], target=target)
+        job = db.get_job(job["id"])
 
     last_error = None
     for attempt in (1, 2):
