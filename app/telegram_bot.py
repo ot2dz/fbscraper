@@ -15,7 +15,8 @@ API = "https://api.telegram.org/bot{token}/{method}"
 HELP = (
     "بوت سحب منشورات فيسبوك\n\n"
     "استخدم الأزرار:\n"
-    "🚀 سحب جديد — أرسل معرّف الصفحة أو رابطها ثم اختر العدد والأيام\n"
+    "🚀 سحب منشورات — أرسل معرّف الصفحة أو رابطها ثم اختر العدد والأيام\n"
+    "💬 تعليقات منشور — أرسل رابط منشور واحد واختر عدد التعليقات\n"
     "📋 آخر العمليات — عرض النتائج السابقة وإعادة إرسال الملف\n"
     "⏳ حالة الطابور — ما يعمل الآن وما ينتظر\n\n"
     "يقبل كل أنواع الروابط:\n"
@@ -33,11 +34,14 @@ def _keyboard(rows):
 def _main_keyboard():
     rows = [
         [
-            {"text": "🚀 سحب جديد", "callback_data": "m:new"},
-            {"text": "📋 آخر العمليات", "callback_data": "m:jobs"},
+            {"text": "🚀 سحب منشورات", "callback_data": "m:new"},
+            {"text": "💬 تعليقات منشور", "callback_data": "m:comments"},
         ],
         [
+            {"text": "📋 آخر العمليات", "callback_data": "m:jobs"},
             {"text": "⏳ حالة الطابور", "callback_data": "m:status"},
+        ],
+        [
             {"text": "❓ مساعدة", "callback_data": "m:help"},
         ],
     ]
@@ -115,11 +119,47 @@ def _session(chat_id):
         _, default_posts, default_days = _limits()
         _sessions[chat_id] = {
             "state": "idle",
+            "mode": "posts",
             "target": None,
+            "post_url": None,
             "posts": default_posts,
             "days": default_days,
         }
     return _sessions[chat_id]
+
+
+def _comment_options_keyboard(session):
+    count = session.get("posts")
+
+    def mark(value):
+        return f"{'✅ ' if value == count else ''}{value}"
+
+    return _keyboard(
+        [
+            [
+                {"text": f"{mark(20)} تعليق", "callback_data": "p:20"},
+                {"text": f"{mark(50)}", "callback_data": "p:50"},
+                {"text": f"{mark(100)}", "callback_data": "p:100"},
+            ],
+            [
+                {"text": f"{mark(200)}", "callback_data": "p:200"},
+                {"text": "✏️ مخصص", "callback_data": "p:c"},
+            ],
+            [
+                {"text": "✅ ابدأ السحب", "callback_data": "g"},
+                {"text": "✖️ إلغاء", "callback_data": "c"},
+            ],
+        ]
+    )
+
+
+def _comment_options_text(session):
+    return (
+        "سحب تعليقات منشور 💬\n\n"
+        f"المنشور: {session.get('post_url')}\n"
+        f"عدد التعليقات: {session.get('posts')}\n\n"
+        "اضغط ✅ ابدأ السحب عند الجاهزية."
+    )
 
 
 def _api(method, token):
@@ -228,8 +268,44 @@ def send_top_posts(chat_id, job, limit=5):
     send_message(chat_id, "\n".join(lines), top_posts_keyboard(job, limit))
 
 
+def _top_comments_by_likes(path, limit=5):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            comments = json.load(handle).get("comments", [])
+    except Exception:  # noqa: BLE001
+        return []
+    comments.sort(key=lambda comment: comment.get("likes") or 0, reverse=True)
+    return comments[:limit]
+
+
+def send_top_comments(chat_id, job, limit=5):
+    comments = _top_comments_by_likes(job.get("result_path") or "", limit)
+    if not comments:
+        return
+    lines = [f"أفضل {len(comments)} تعليقات حسب الإعجابات:"]
+    for index, comment in enumerate(comments, start=1):
+        text = " ".join(str(comment.get("text") or "").split())[:80]
+        lines.append(f"{index}. {comment.get('likes') or 0} إعجاب — {comment.get('author') or '?'}: {text}")
+    send_message(chat_id, "\n".join(lines))
+
+
 def job_summary_text(job):
     if job["status"] == "done":
+        if job.get("kind") == "comments":
+            lines = [
+                f"تم سحب {job['post_count']} تعليقاً 💬",
+                f"المنشور: {job['target']}",
+                f"إجمالي إعجابات التعليقات: {job['likes']}",
+                f"job_id: {job['id']}",
+            ]
+            top = _top_comments_by_likes(job.get("result_path") or "", 3)
+            if top:
+                lines.append("")
+                lines.append("أعلى التعليقات:")
+                for index, comment in enumerate(top, start=1):
+                    text = " ".join(str(comment.get("text") or "").split())[:60]
+                    lines.append(f"{index}. {comment.get('likes') or 0} إعجاب — {text}")
+            return "\n".join(lines)
         lines = [
             f"تم سحب {job['post_count']} منشوراً ✅",
             f"الصفحة: {job['target']}",
@@ -412,12 +488,28 @@ class TelegramBot:
 
         if session["state"] == "await_posts":
             if not text.isdigit():
-                send_message(chat_id, "أرسل رقماً صحيحاً لعدد المنشورات.", _back_keyboard())
+                send_message(chat_id, "أرسل رقماً صحيحاً.", _back_keyboard())
                 return
             max_posts, _, _ = _limits()
             session["posts"] = max(1, min(int(text), max_posts))
             session["state"] = "idle"
-            send_message(chat_id, _options_text(session), _options_keyboard(session))
+            if session.get("mode") == "comments":
+                send_message(chat_id, _comment_options_text(session), _comment_options_keyboard(session))
+            else:
+                send_message(chat_id, _options_text(session), _options_keyboard(session))
+            return
+
+        if session["state"] == "await_post_url":
+            from app.comments_runner import build_post_url
+
+            try:
+                session["post_url"] = build_post_url(text)
+            except ValueError as exc:
+                send_message(chat_id, f"خطأ: {exc}", _back_keyboard())
+                return
+            session["mode"] = "comments"
+            session["state"] = "idle"
+            send_message(chat_id, _comment_options_text(session), _comment_options_keyboard(session))
             return
 
         if session["state"] == "await_days":
@@ -447,6 +539,19 @@ class TelegramBot:
             send_message(chat_id, _options_text(session), _options_keyboard(session))
             return
 
+        if any(marker in text for marker in ("/posts/", "permalink.php", "/videos/", "/reel/")):
+            from app.comments_runner import build_post_url
+
+            try:
+                session["post_url"] = build_post_url(text)
+            except ValueError as exc:
+                send_message(chat_id, f"خطأ: {exc}", _main_keyboard())
+                return
+            session["mode"] = "comments"
+            session["state"] = "idle"
+            send_message(chat_id, _comment_options_text(session), _comment_options_keyboard(session))
+            return
+
         try:
             session["target"] = normalize_target(text)
         except ValueError:
@@ -470,11 +575,22 @@ class TelegramBot:
             edit_message(chat_id, message_id, "القائمة الرئيسية:", _main_keyboard())
             return
         if data == "m:new":
+            session["mode"] = "posts"
             session["state"] = "await_target"
             edit_message(
                 chat_id,
                 message_id,
                 "أرسل معرّف الصفحة أو رابطها (مثال: 100088686736411).",
+                _back_keyboard(),
+            )
+            return
+        if data == "m:comments":
+            session["mode"] = "comments"
+            session["state"] = "await_post_url"
+            edit_message(
+                chat_id,
+                message_id,
+                "أرسل رابط المنشور الذي تريد تعليقاته:\nhttps://www.facebook.com/username/posts/123…",
                 _back_keyboard(),
             )
             return
@@ -489,16 +605,20 @@ class TelegramBot:
             return
         if data == "c":
             session["state"] = "idle"
+            session["mode"] = "posts"
             edit_message(chat_id, message_id, "تم الإلغاء.", _main_keyboard())
             return
         if data.startswith("p:"):
             value = data.split(":", 1)[1]
             if value == "c":
                 session["state"] = "await_posts"
-                edit_message(chat_id, message_id, "أرسل عدد المنشورات المطلوب (رقم).", _back_keyboard())
+                edit_message(chat_id, message_id, "أرسل العدد المطلوب (رقم).", _back_keyboard())
                 return
             session["posts"] = int(value)
-            edit_message(chat_id, message_id, _options_text(session), _options_keyboard(session))
+            if session.get("mode") == "comments":
+                edit_message(chat_id, message_id, _comment_options_text(session), _comment_options_keyboard(session))
+            else:
+                edit_message(chat_id, message_id, _options_text(session), _options_keyboard(session))
             return
         if data.startswith("d:"):
             value = data.split(":", 1)[1]
@@ -510,12 +630,33 @@ class TelegramBot:
             edit_message(chat_id, message_id, _options_text(session), _options_keyboard(session))
             return
         if data == "g":
-            if not session.get("target"):
-                edit_message(chat_id, message_id, "أرسل معرّف الصفحة أولاً.", _main_keyboard())
-                return
             from app.jobs import enqueue
 
             max_posts, _, _ = _limits()
+            if session.get("mode") == "comments":
+                if not session.get("post_url"):
+                    edit_message(chat_id, message_id, "أرسل رابط المنشور أولاً.", _main_keyboard())
+                    return
+                job = enqueue(
+                    session["post_url"],
+                    max(1, min(int(session.get("posts") or 50), max_posts)),
+                    0,
+                    source="telegram",
+                    chat_id=chat_id,
+                    kind="comments",
+                )
+                edit_message(
+                    chat_id,
+                    message_id,
+                    f"تم استلام الطلب ✅\njob_id: {job['id']}\n"
+                    f"المنشور: {job['target']}\nالتعليقات: {job['posts_limit']}\n"
+                    "سأرسل النتيجة عند الانتهاء.",
+                    _back_keyboard(),
+                )
+                return
+            if not session.get("target"):
+                edit_message(chat_id, message_id, "أرسل معرّف الصفحة أولاً.", _main_keyboard())
+                return
             job = enqueue(
                 session["target"],
                 max(1, min(int(session.get("posts") or 30), max_posts)),
@@ -539,7 +680,10 @@ class TelegramBot:
                 return
             if job["status"] == "done":
                 send_message(chat_id, job_summary_text(job))
-                send_top_posts(chat_id, job)
+                if job.get("kind") == "comments":
+                    send_top_comments(chat_id, job)
+                else:
+                    send_top_posts(chat_id, job)
                 send_document(chat_id, job.get("result_path"), caption="النتيجة الكاملة (JSON)")
             else:
                 send_message(chat_id, f"الحالة: {job['status']}\nالمنشورات: {job['post_count']}")

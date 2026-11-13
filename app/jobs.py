@@ -5,7 +5,7 @@ import threading
 
 from app import db
 from app.scraper_runner import run_scrape
-from app.telegram_bot import job_summary_text, send_document, send_message, send_top_posts
+from app.telegram_bot import job_summary_text, send_document, send_message, send_top_comments, send_top_posts
 
 _queue = queue.Queue()
 _started = False
@@ -13,8 +13,8 @@ _current_job = None
 _lock = threading.Lock()
 
 
-def enqueue(target, posts, days, source="web", chat_id=None):
-    job = db.create_job(target, posts, days, source=source, chat_id=chat_id)
+def enqueue(target, posts, days, source="web", chat_id=None, kind="posts"):
+    job = db.create_job(target, posts, days, source=source, chat_id=chat_id, kind=kind)
     _queue.put(job["id"])
     return job
 
@@ -27,7 +27,12 @@ def _loop():
         with _lock:
             _current_job = job_id
         try:
-            result = run_scrape(job)
+            if job.get("kind") == "comments":
+                from app.comments_runner import run_comments
+
+                result = run_comments(job)
+            else:
+                result = run_scrape(job)
         except Exception as exc:  # noqa: BLE001
             db.update_job(job_id, status="failed", error=f"{type(exc).__name__}: {exc}"[:500])
             result = None
@@ -38,7 +43,10 @@ def _loop():
         if finished and finished.get("source") == "telegram" and finished.get("chat_id"):
             if finished["status"] == "done":
                 send_message(finished["chat_id"], job_summary_text(finished))
-                send_top_posts(finished["chat_id"], finished)
+                if finished.get("kind") == "comments":
+                    send_top_comments(finished["chat_id"], finished)
+                else:
+                    send_top_posts(finished["chat_id"], finished)
                 send_document(finished["chat_id"], finished.get("result_path"), caption="النتيجة الكاملة (JSON)")
             else:
                 send_message(finished["chat_id"], job_summary_text(finished))

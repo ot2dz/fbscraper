@@ -19,7 +19,7 @@
   {% if job.result_path %}<p><a href="/results/{{ job.id }}.json">تحميل JSON</a></p>{% endif %}
 </div>
 
-{% if job.result_path %}
+{% if job.result_path and job.kind != 'comments' %}
 <div class="card">
   <h2>ترتيب وفلترة المنشورات ({{ posts | length }} من {{ total_posts }})</h2>
   <form method="get" action="/jobs/{{ job.id }}">
@@ -56,7 +56,7 @@
 </div>
 {% endif %}
 
-{% if posts %}
+{% if posts and job.kind != 'comments' %}
 <div class="card">
   <h2>المنشورات</h2>
   <table>
@@ -79,6 +79,36 @@
         <td>{{ post['share_count.count'] or 0 }}</td>
         <td class="clamp" title="{{ post.context or '' }}">{{ (post.context or '')[:90] }}</td>
         <td><a href="{{ post.post_url }}" target="_blank" rel="noopener">فتح</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if posts and job.kind == 'comments' %}
+<div class="card">
+  <h2>التعليقات ({{ posts | length }} — مرتبة حسب الإعجابات)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>صاحب التعليق</th>
+        <th>التعليق</th>
+        <th>إعجابات</th>
+        <th>التاريخ</th>
+        <th>نوع</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for comment in posts %}
+      <tr>
+        <td class="muted">{{ loop.index }}</td>
+        <td>{{ comment.author or '—' }}</td>
+        <td style="max-width:520px">{{ comment.text }}</td>
+        <td>{{ comment.likes or 0 }}</td>
+        <td class="muted">{{ comment.created_at or '—' }}</td>
+        <td>{% if comment.is_reply %}<span class="badge">رد</span>{% else %}<span class="badge done">تعليق</span>{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

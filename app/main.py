@@ -154,6 +154,31 @@ async def api_scrape(
     return {"job": job}
 
 
+@app.post("/api/scrape_comments")
+async def api_scrape_comments(
+    request: Request,
+    target: str = Form(...),
+    limit: str = Form("50"),
+):
+    if not is_logged_in(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from app.comments_runner import build_post_url
+
+    try:
+        clean_target = build_post_url(target)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    max_posts = int(db.get_setting("max_posts", "200") or 200)
+    job = enqueue(
+        clean_target,
+        max(1, min(int(limit or 50), max_posts)),
+        0,
+        source="web",
+        kind="comments",
+    )
+    return {"job": job}
+
+
 @app.post("/api/debug/browser")
 async def api_debug_browser(request: Request, target: str = Form(""), url: str = Form("")):
     """Open a page in Chromium and report what Facebook served (no scraping)."""
@@ -291,10 +316,14 @@ async def job_page(request: Request, job_id: str):
     if job.get("result_path") and os.path.exists(job["result_path"]):
         try:
             with open(job["result_path"], encoding="utf-8") as handle:
-                raw_posts = json.load(handle).get("data", [])
+                payload = json.load(handle)
+            raw_posts = payload.get("data", payload.get("comments", []))
         except Exception:  # noqa: BLE001
             raw_posts = []
-    posts = sort_and_filter(raw_posts, sort=sort, order=order, min_comments=min_comments, query=query)
+    if job.get("kind") == "comments":
+        posts = sorted(raw_posts, key=lambda item: item.get("likes") or 0, reverse=True)
+    else:
+        posts = sort_and_filter(raw_posts, sort=sort, order=order, min_comments=min_comments, query=query)
     log_tail = ""
     if job.get("log_path") and os.path.exists(job["log_path"]):
         with open(job["log_path"], encoding="utf-8", errors="replace") as handle:

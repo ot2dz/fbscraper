@@ -41,6 +41,7 @@ def init_db():
                 days INTEGER NOT NULL,
                 status TEXT NOT NULL,
                 source TEXT NOT NULL DEFAULT 'web',
+                kind TEXT NOT NULL DEFAULT 'posts',
                 chat_id TEXT,
                 created_at TEXT NOT NULL,
                 started_at TEXT,
@@ -59,9 +60,10 @@ def init_db():
             """
         )
         existing = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
-        for column in ("oldest", "newest"):
+        for column in ("oldest", "newest", "kind"):
             if column not in existing:
-                conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
+                default = " NOT NULL DEFAULT 'posts'" if column == "kind" else ""
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT{default}")
         conn.commit()
 
 
@@ -92,14 +94,14 @@ def all_settings():
     return data
 
 
-def create_job(target, posts_limit, days, source="web", chat_id=None):
+def create_job(target, posts_limit, days, source="web", chat_id=None, kind="posts"):
     job_id = uuid.uuid4().hex[:12]
     with _lock:
         conn = _get_conn()
         conn.execute(
-            "INSERT INTO jobs(id, target, posts_limit, days, status, source, chat_id, created_at) "
-            "VALUES(?,?,?,?,?,?,?,?)",
-            (job_id, target, int(posts_limit), int(days), "queued", source, chat_id, _now()),
+            "INSERT INTO jobs(id, target, posts_limit, days, status, source, kind, chat_id, created_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (job_id, target, int(posts_limit), int(days), "queued", source, kind, chat_id, _now()),
         )
         conn.commit()
     return get_job(job_id)

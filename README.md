@@ -292,6 +292,8 @@ Chromium instance is reused per job, and jobs run one at a time from a queue.
 - Telegram: inline buttons for new scrape (choose posts/days), last jobs, queue
   status and help — no commands needed (`/scrape`, `/status` still work)
 - After each scrape the bot sends the top 5 posts by comments with direct links
+- Comments mode: scrape comments of one specific post (author, text, likes, date,
+  replies) from the panel or the bot
 
 ### Environment variables
 

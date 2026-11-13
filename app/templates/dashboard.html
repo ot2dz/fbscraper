@@ -34,7 +34,7 @@
 </div>
 
 <div class="card">
-  <h2>سحب جديد</h2>
+  <h2>سحب منشورات صفحة</h2>
   <form id="scrapeForm">
     <div class="row">
       <div style="flex:2">
@@ -53,6 +53,26 @@
     <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
       <button type="submit" id="submitBtn">ابدأ السحب</button>
       <span id="formStatus" class="muted"></span>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>سحب تعليقات منشور</h2>
+  <form id="commentsForm">
+    <div class="row">
+      <div style="flex:2">
+        <label for="post_target">رابط المنشور أو معرّفه</label>
+        <input id="post_target" name="target" type="text" placeholder="https://www.facebook.com/username/posts/123… أو 123456789" required>
+      </div>
+      <div>
+        <label for="comment_limit">عدد التعليقات</label>
+        <input id="comment_limit" name="limit" type="number" min="1" max="{{ settings.max_posts }}" value="50">
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
+      <button type="submit" id="commentsBtn">ابدأ سحب التعليقات</button>
+      <span id="commentsStatus" class="muted"></span>
     </div>
   </form>
 </div>
@@ -106,6 +126,38 @@ form.addEventListener('submit', async (event) => {
     if (job.status === 'done' || job.status === 'failed') {
       clearInterval(poll);
       btn.disabled = false;
+      window.location.href = `/jobs/${id}`;
+    }
+  }, 3000);
+});
+
+const commentsForm = document.getElementById('commentsForm');
+const commentsStatus = document.getElementById('commentsStatus');
+const commentsBtn = document.getElementById('commentsBtn');
+
+commentsForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  commentsBtn.disabled = true;
+  commentsStatus.textContent = 'جاري الإرسال...';
+  const body = new URLSearchParams(new FormData(commentsForm));
+  const response = await fetch('/api/scrape_comments', { method: 'POST', body });
+  const payload = await response.json();
+  if (!response.ok) {
+    commentsStatus.textContent = payload.error || 'خطأ';
+    commentsBtn.disabled = false;
+    return;
+  }
+  const id = payload.job.id;
+  commentsStatus.innerHTML = `job_id: <a href="/jobs/${id}">${id}</a> — في الانتظار...`;
+  const poll = setInterval(async () => {
+    const res = await fetch(`/api/jobs/${id}`);
+    const data = await res.json();
+    const job = data.job;
+    if (!job) return;
+    commentsStatus.textContent = `job_id: ${id} — ${job.status}` + (job.status === 'running' ? ' (يقرأ التعليقات...)' : '');
+    if (job.status === 'done' || job.status === 'failed') {
+      clearInterval(poll);
+      commentsBtn.disabled = false;
       window.location.href = `/jobs/${id}`;
     }
   }, 3000);
