@@ -276,7 +276,7 @@ class TelegramBot:
                 if not payload.get("ok"):
                     description = payload.get("description", "telegram error")
                     self._last_error = description
-                    if "webhook" in description.lower() or payload.get("error_code") == 409:
+                    if "webhook" in description.lower():
                         await self._delete_webhook(token)
                     await asyncio.sleep(10)
                     continue
@@ -323,10 +323,6 @@ class TelegramBot:
             async with httpx.AsyncClient(timeout=20) as client:
                 me = (await client.post(_api("getMe", token))).json()
                 webhook = (await client.post(_api("getWebhookInfo", token))).json()
-                updates = (await client.post(
-                    _api("getUpdates", token),
-                    json={"offset": -1, "limit": 1, "timeout": 0},
-                )).json()
             result["get_me"] = me.get("result") if me.get("ok") else me.get("description")
             info = webhook.get("result") or {}
             result["webhook"] = {
@@ -334,7 +330,6 @@ class TelegramBot:
                 "pending_updates": info.get("pending_update_count"),
                 "last_error": info.get("last_error_message"),
             }
-            result["pending_updates"] = len(updates.get("result") or []) if updates.get("ok") else updates.get("description")
         except Exception as exc:  # noqa: BLE001
             result["error"] = f"{type(exc).__name__}: {exc}"
         return result
