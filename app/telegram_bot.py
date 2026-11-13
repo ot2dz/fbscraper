@@ -57,13 +57,19 @@ def _parse_scrape_args(parts):
 def send_message(chat_id, text):
     token = db.get_setting("telegram_token", "")
     if not token or not chat_id:
+        print(f"telegram sendMessage skipped (token={bool(token)} chat={chat_id})")
         return
     try:
-        httpx.post(
+        response = httpx.post(
             API.format(token=token, method="sendMessage"),
             json={"chat_id": chat_id, "text": text[:4000], "disable_web_page_preview": True},
             timeout=30,
         )
+        payload = response.json()
+        if not payload.get("ok"):
+            print(f"telegram sendMessage failed: {payload.get('error_code')} {payload.get('description')}")
+        else:
+            print(f"telegram sendMessage ok -> chat={chat_id}")
     except Exception as exc:  # noqa: BLE001
         print(f"telegram sendMessage failed: {exc}")
 
@@ -256,6 +262,7 @@ class TelegramBot:
     async def _handle(self, token, message):
         chat_id = str(message.get("chat", {}).get("id", ""))
         text = (message.get("text") or "").strip()
+        print(f"[telegram] chat={chat_id} text={text[:60]!r}")
         if not text:
             return
         if not _allowed(chat_id):
