@@ -31,6 +31,19 @@ def _keyboard(rows):
     return {"inline_keyboard": rows}
 
 
+def _reply_keyboard():
+    """Persistent keyboard at the bottom of the chat."""
+    return {
+        "keyboard": [
+            [{"text": "🚀 سحب منشورات"}, {"text": "💬 تعليقات منشور"}],
+            [{"text": "📋 آخر العمليات"}, {"text": "⏳ حالة الطابور"}],
+            [{"text": "❓ مساعدة"}],
+        ],
+        "resize_keyboard": True,
+        "is_persistent": True,
+    }
+
+
 def _main_keyboard():
     rows = [
         [
@@ -488,6 +501,7 @@ class TelegramBot:
         if command in {"/start", "/menu"}:
             session["state"] = "idle"
             send_message(chat_id, "القائمة الرئيسية:", _main_keyboard())
+            send_message(chat_id, "يمكنك أيضاً استخدام الأزرار الثابتة أسفل الشاشة في أي وقت.", _reply_keyboard())
             return
         if command == "/help":
             send_message(chat_id, HELP, _back_keyboard())
@@ -497,6 +511,31 @@ class TelegramBot:
             return
         if command == "/status":
             send_message(chat_id, _queue_status_text(), _back_keyboard())
+            return
+
+        label = text.strip()
+        if label in {"🚀 سحب منشورات", "سحب منشورات"}:
+            session["mode"] = "posts"
+            session["state"] = "await_target"
+            send_message(chat_id, "أرسل معرّف الصفحة أو رابطها:", _back_keyboard())
+            return
+        if label in {"💬 تعليقات منشور", "تعليقات منشور", "تحليل تعليقات"}:
+            session["mode"] = "comments"
+            session["state"] = "await_post_url"
+            send_message(
+                chat_id,
+                "أرسل رابط المنشور الذي تريد تحليل تعليقاته:\nhttps://www.facebook.com/username/posts/123…",
+                _back_keyboard(),
+            )
+            return
+        if label in {"📋 آخر العمليات", "آخر العمليات"}:
+            send_message(chat_id, _jobs_text(), _jobs_keyboard())
+            return
+        if label in {"⏳ حالة الطابور", "حالة الطابور"}:
+            send_message(chat_id, _queue_status_text(), _back_keyboard())
+            return
+        if label in {"❓ مساعدة", "مساعدة"}:
+            send_message(chat_id, HELP, _back_keyboard())
             return
 
         if session["state"] == "await_posts":
@@ -586,6 +625,7 @@ class TelegramBot:
         if data == "m:menu":
             session["state"] = "idle"
             edit_message(chat_id, message_id, "القائمة الرئيسية:", _main_keyboard())
+            send_message(chat_id, "الأزرار الثابتة بالأسفل تعمل في أي وقت.", _reply_keyboard())
             return
         if data == "m:new":
             session["mode"] = "posts"
