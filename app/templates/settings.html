@@ -58,8 +58,51 @@
       </div>
     </div>
 
+    <h2 style="margin-top:28px">تحليل الذكاء الاصطناعي (OpenCode Go / Gemini Flash)</h2>
+    <p class="muted" style="font-size:12px;margin-top:0">
+      يُحلّل تعليقات كل عملية سحب ويُرسل ملخصاً في تلجرام (السعر، الانتقادات، الأسئلة...).
+    </p>
+    <div class="row">
+      <div>
+        <label>تفعيل التحليل</label>
+        <select name="ai_enabled">
+          <option value="1" {{ 'selected' if settings.ai_enabled == '1' else '' }}>مُفعّل</option>
+          <option value="0" {{ 'selected' if settings.ai_enabled != '1' else '' }}>متوقف</option>
+        </select>
+      </div>
+      <div style="flex:2">
+        <label for="ai_base_url">Base URL (OpenAI-compatible)</label>
+        <input id="ai_base_url" name="ai_base_url" type="text" value="{{ settings.ai_base_url }}" placeholder="https://opencode.ai/inference/openai/v1">
+      </div>
+      <div>
+        <label for="ai_model">الموديل</label>
+        <input id="ai_model" name="ai_model" type="text" value="{{ settings.ai_model }}" placeholder="gemini-3.8-flash">
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:2">
+        <label for="ai_api_key">API Key (من OpenCode Go)</label>
+        <input id="ai_api_key" name="ai_api_key" type="password" value="{{ settings.ai_api_key }}" placeholder="sk-...">
+      </div>
+      <div>
+        <label for="ai_max_comments">أقصى تعليقات للتحليل</label>
+        <input id="ai_max_comments" name="ai_max_comments" type="number" min="10" max="500" value="{{ settings.ai_max_comments }}">
+      </div>
+    </div>
+    <label for="ai_prompt_extra">تعليمات إضافية (اختياري)</label>
+    <input id="ai_prompt_extra" name="ai_prompt_extra" type="text" value="{{ settings.ai_prompt_extra }}" placeholder="ركّز على ذكر السعر والجودة">
+
     <div style="margin-top:20px"><button type="submit">حفظ</button></div>
   </form>
+</div>
+
+<div class="card">
+  <h2>فحص التحليل</h2>
+  <p class="muted" style="font-size:12px;margin-top:0">
+    يحفظ الإعدادات أولاً ثم يرسل 3 تعليقات تجريبية للموديل ويعرض الملخص.
+  </p>
+  <button type="button" id="aiTestBtn" class="secondary">فحص التحليل الآن</button>
+  <pre id="aiTestOut" style="display:none"></pre>
 </div>
 
 <div class="card">
@@ -96,6 +139,21 @@ document.getElementById('diagBtn').addEventListener('click', async () => {
   if (data.webhook && data.webhook.url) {
     await fetch('/api/bot/restart', { method: 'POST' });
     out.textContent += '\n\nتم حذف webhook وإعادة تشغيل الاستقبال. أرسل /start الآن.';
+  }
+});
+</script>
+
+<script>
+document.getElementById('aiTestBtn').addEventListener('click', async () => {
+  const out = document.getElementById('aiTestOut');
+  out.style.display = 'block';
+  out.textContent = 'جارٍ التحليل...';
+  try {
+    const response = await fetch('/api/ai/test', { method: 'POST' });
+    const data = await response.json();
+    out.textContent = data.text || JSON.stringify(data.analysis, null, 2);
+  } catch (error) {
+    out.textContent = 'خطأ في الاتصال';
   }
 });
 </script>

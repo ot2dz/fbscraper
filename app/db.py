@@ -54,13 +54,14 @@ def init_db():
                 shares INTEGER DEFAULT 0,
                 profile_name TEXT,
                 error TEXT,
+                analysis TEXT,
                 result_path TEXT,
                 log_path TEXT
             );
             """
         )
         existing = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
-        for column in ("oldest", "newest", "kind"):
+        for column in ("oldest", "newest", "kind", "analysis"):
             if column not in existing:
                 default = " NOT NULL DEFAULT 'posts'" if column == "kind" else ""
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT{default}")

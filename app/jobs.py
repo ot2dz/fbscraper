@@ -40,6 +40,14 @@ def _loop():
             with _lock:
                 _current_job = None
         finished = db.get_job(job_id)
+        if finished and finished.get("kind") == "comments" and finished["status"] == "done":
+            try:
+                from app.ai_analyzer import analyze_job
+
+                analyze_job(job_id)
+                finished = db.get_job(job_id)
+            except Exception as exc:  # noqa: BLE001
+                print(f"AI analysis failed: {exc}")
         if finished and finished.get("source") == "telegram" and finished.get("chat_id"):
             if finished["status"] == "done":
                 send_message(finished["chat_id"], job_summary_text(finished))
@@ -47,7 +55,7 @@ def _loop():
                     send_top_comments(finished["chat_id"], finished)
                 else:
                     send_top_posts(finished["chat_id"], finished)
-                send_document(finished["chat_id"], finished.get("result_path"), caption="النتيجة الكاملة (JSON)")
+                    send_document(finished["chat_id"], finished.get("result_path"), caption="النتيجة الكاملة (JSON)")
             else:
                 send_message(finished["chat_id"], job_summary_text(finished))
         _queue.task_done()

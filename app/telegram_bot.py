@@ -295,16 +295,29 @@ def job_summary_text(job):
             lines = [
                 f"تم سحب {job['post_count']} تعليقاً 💬",
                 f"المنشور: {job['target']}",
-                f"إجمالي إعجابات التعليقات: {job['likes']}",
                 f"job_id: {job['id']}",
             ]
-            top = _top_comments_by_likes(job.get("result_path") or "", 3)
-            if top:
-                lines.append("")
-                lines.append("أعلى التعليقات:")
-                for index, comment in enumerate(top, start=1):
-                    text = " ".join(str(comment.get("text") or "").split())[:60]
-                    lines.append(f"{index}. {comment.get('likes') or 0} إعجاب — {text}")
+            analysis = None
+            if job.get("analysis"):
+                try:
+                    analysis = json.loads(job["analysis"])
+                except ValueError:
+                    analysis = None
+            if analysis:
+                from app.ai_analyzer import analysis_text
+
+                text = analysis_text(analysis)
+                if text:
+                    lines.append("")
+                    lines.append(text)
+            else:
+                top = _top_comments_by_likes(job.get("result_path") or "", 3)
+                if top:
+                    lines.append("")
+                    lines.append("أعلى التعليقات:")
+                    for index, comment in enumerate(top, start=1):
+                        snippet = " ".join(str(comment.get("text") or "").split())[:60]
+                        lines.append(f"{index}. {comment.get('likes') or 0} إعجاب — {snippet}")
             return "\n".join(lines)
         lines = [
             f"تم سحب {job['post_count']} منشوراً ✅",

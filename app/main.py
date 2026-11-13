@@ -110,6 +110,12 @@ async def save_settings(
     default_days: str = Form("30"),
     proxy: str = Form(""),
     request_timeout: str = Form("30"),
+    ai_enabled: str = Form("0"),
+    ai_base_url: str = Form("https://opencode.ai/inference/openai/v1"),
+    ai_api_key: str = Form(""),
+    ai_model: str = Form("gemini-3.8-flash"),
+    ai_max_comments: str = Form("150"),
+    ai_prompt_extra: str = Form(""),
 ):
     redirect = _auth_redirect(request)
     if redirect:
@@ -124,6 +130,12 @@ async def save_settings(
         "default_days": str(max(1, int(default_days or 30))),
         "proxy": proxy.strip(),
         "request_timeout": str(max(5, int(request_timeout or 30))),
+        "ai_enabled": "1" if ai_enabled == "1" else "0",
+        "ai_base_url": (ai_base_url or "https://opencode.ai/inference/openai/v1").strip().rstrip("/"),
+        "ai_api_key": ai_api_key.strip(),
+        "ai_model": (ai_model or "gemini-3.8-flash").strip(),
+        "ai_max_comments": str(max(10, min(int(ai_max_comments or 150), 500))),
+        "ai_prompt_extra": ai_prompt_extra.strip(),
     }
     for key, value in values.items():
         db.set_setting(key, value)
@@ -177,6 +189,35 @@ async def api_scrape_comments(
         kind="comments",
     )
     return {"job": job}
+
+
+@app.post("/api/ai/test")
+async def api_ai_test(request: Request):
+    if not is_logged_in(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from fastapi.concurrency import run_in_threadpool
+
+    from app.ai_analyzer import analysis_text, analyze_comments
+
+    sample = [
+        {"author": "أمينة", "text": "السعر 2500 دج؟ الجودة ممتازة لكن التوصيل تأخر", "likes": 4},
+        {"author": "ياسين", "text": "غالي شوية مقارنة بغيركم", "likes": 1},
+        {"author": "سارة", "text": "واش يخدم في الصيف؟", "likes": 0},
+    ]
+    result = await run_in_threadpool(analyze_comments, sample, "اختبار", True)
+    return {"analysis": result, "text": analysis_text(result)}
+
+
+@app.post("/api/analyze/{job_id}")
+async def api_analyze(request: Request, job_id: str):
+    if not is_logged_in(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from fastapi.concurrency import run_in_threadpool
+
+    from app.ai_analyzer import analysis_text, analyze_job
+
+    result = await run_in_threadpool(analyze_job, job_id)
+    return {"analysis": result, "text": analysis_text(result)}
 
 
 @app.post("/api/debug/browser")
@@ -324,6 +365,16 @@ async def job_page(request: Request, job_id: str):
         posts = sorted(raw_posts, key=lambda item: item.get("likes") or 0, reverse=True)
     else:
         posts = sort_and_filter(raw_posts, sort=sort, order=order, min_comments=min_comments, query=query)
+    analysis = None
+    analysis_summary = ""
+    if job.get("analysis"):
+        try:
+            analysis = json.loads(job["analysis"])
+            from app.ai_analyzer import analysis_text
+
+            analysis_summary = analysis_text(analysis)
+        except Exception:  # noqa: BLE001
+            analysis = None
     log_tail = ""
     if job.get("log_path") and os.path.exists(job["log_path"]):
         with open(job["log_path"], encoding="utf-8", errors="replace") as handle:
@@ -341,6 +392,8 @@ async def job_page(request: Request, job_id: str):
             query=query,
             min_comments=min_comments,
             sort_labels=SORT_LABELS,
+            analysis=analysis,
+            analysis_summary=analysis_summary,
             log_tail=log_tail,
         ),
     )

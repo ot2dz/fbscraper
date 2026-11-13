@@ -86,36 +86,43 @@
 </div>
 {% endif %}
 
-{% if posts and job.kind == 'comments' %}
+{% if job.kind == 'comments' %}
 <div class="card">
-  <h2>التعليقات ({{ posts | length }} — مرتبة حسب الإعجابات)</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>صاحب التعليق</th>
-        <th>التعليق</th>
-        <th>إعجابات</th>
-        <th>التاريخ</th>
-        <th>نوع</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for comment in posts %}
-      <tr>
-        <td class="muted">{{ loop.index }}</td>
-        <td>{{ comment.author or '—' }}</td>
-        <td style="max-width:520px">{{ comment.text }}</td>
-        <td>{{ comment.likes or 0 }}</td>
-        <td class="muted">{{ comment.created_at or '—' }}</td>
-        <td>{% if comment.is_reply %}<span class="badge">رد</span>{% else %}<span class="badge done">تعليق</span>{% endif %}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <h2>تحليل الذكاء الاصطناعي</h2>
+  {% if analysis_summary %}
+    <pre style="white-space:pre-wrap;direction:rtl;text-align:right;background:#12161c">{{ analysis_summary }}</pre>
+  {% else %}
+    <p class="muted">لا يوجد تحليل بعد — اضغط «حلّل الآن».</p>
+  {% endif %}
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+    <button type="button" id="analyzeBtn">حلّل الآن</button>
+    <span id="analyzeStatus" class="muted"></span>
+  </div>
+  {% if analysis and analysis._meta %}
+  <p class="muted" style="font-size:12px;margin-top:10px">الموديل: {{ analysis._meta.model }} — حُللت {{ analysis._meta.analyzed }} من {{ analysis._meta.total }} تعليقاً</p>
+  {% endif %}
 </div>
+<script>
+(function () {
+  const button = document.getElementById('analyzeBtn');
+  const status = document.getElementById('analyzeStatus');
+  if (!button) return;
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    status.textContent = 'جارٍ التحليل...';
+    try {
+      const response = await fetch('/api/analyze/{{ job.id }}', { method: 'POST' });
+      const data = await response.json();
+      if (data.text) { status.textContent = 'تم، جارٍ التحديث...'; window.location.reload(); }
+      else { status.textContent = 'فشل التحليل'; button.disabled = false; }
+    } catch (error) {
+      status.textContent = 'خطأ في الاتصال';
+      button.disabled = false;
+    }
+  });
+})();
+</script>
 {% endif %}
-
 {% if log_tail %}
 <div class="card">
   <h2>سجل التشغيل</h2>

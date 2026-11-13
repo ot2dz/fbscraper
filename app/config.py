@@ -25,6 +25,12 @@ DEFAULTS = {
     "default_days": "30",
     "proxy": "",
     "request_timeout": "30",
+    "ai_enabled": "0",
+    "ai_base_url": "https://opencode.ai/inference/openai/v1",
+    "ai_api_key": "",
+    "ai_model": "gemini-3.8-flash",
+    "ai_max_comments": "150",
+    "ai_prompt_extra": "",
     "welcome_message": "أرسل /scrape <page_id أو رابط الصفحة> [عدد المنشورات] [عدد الأيام]",
 }
 

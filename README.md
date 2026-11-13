@@ -294,6 +294,8 @@ Chromium instance is reused per job, and jobs run one at a time from a queue.
 - After each scrape the bot sends the top 5 posts by comments with direct links
 - Comments mode: scrape comments of one specific post (author, text, likes, date,
   replies) from the panel or the bot
+- AI summary of comments (OpenCode Go / Gemini 3.8 Flash): price mentions,
+  criticisms, questions and recommendations, sent to Telegram after each scrape
 
 ### Environment variables
 
