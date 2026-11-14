@@ -33,7 +33,7 @@ def _settings():
     }
 
 
-def _chat(base_url, api_key, model, messages, max_tokens=1600):
+def _chat(base_url, api_key, model, messages, max_tokens=2600):
     response = httpx.post(
         f"{base_url}/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -43,12 +43,17 @@ def _chat(base_url, api_key, model, messages, max_tokens=1600):
             "temperature": 0.2,
             "max_tokens": max_tokens,
         },
-        timeout=120,
+        timeout=180,
     )
     if response.status_code >= 400:
         raise RuntimeError(f"HTTP {response.status_code}: {response.text[:300]}")
     payload = response.json()
-    return payload["choices"][0]["message"]["content"]
+    content = payload["choices"][0]["message"]["content"]
+    if isinstance(content, list):
+        content = "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
+    return content or ""
 
 
 def _extract_json(text):
@@ -58,8 +63,14 @@ def _extract_json(text):
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1:
-        raise ValueError("لم يرجع النموذج JSON صالحاً")
-    return json.loads(text[start : end + 1])
+        raise ValueError(f"لم يرجع النموذج JSON صالحاً (بداية الرد: {text[:120]!r})")
+    candidate = text[start : end + 1]
+    try:
+        return json.loads(candidate)
+    except ValueError:
+        # last resort: remove trailing commas and retry
+        cleaned = re.sub(r",\s*([}\]])", r"\1", candidate)
+        return json.loads(cleaned)
 
 
 def analyze_comments(comments, post_url="", force=False):
@@ -98,7 +109,21 @@ def analyze_comments(comments, post_url="", force=False):
         )
         analysis = _extract_json(content)
     except Exception as exc:  # noqa: BLE001
-        return {"error": f"{type(exc).__name__}: {exc}"[:500]}
+        try:
+            content = _chat(
+                settings["base_url"],
+                settings["api_key"],
+                settings["model"],
+                [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                    {"role": "user", "content": "أعد الآن JSON صحيحاً فقط بدون أي نص أو شرح أو علامات ```"},
+                ],
+            )
+            analysis = _extract_json(content)
+        except Exception as retry_exc:  # noqa: BLE001
+            print(f"AI analysis failed: {type(retry_exc).__name__}: {retry_exc}")
+            return {"error": f"{type(retry_exc).__name__}: {retry_exc}"[:500]}
 
     analysis["_meta"] = {
         "model": settings["model"],
