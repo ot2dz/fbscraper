@@ -87,6 +87,34 @@ def build_post_url(target):
     return value
 
 
+def resolve_post_url(target):
+    """Normalize reels/short share links to a page that exposes comments."""
+    value = build_post_url(target)
+    match = re.search(r"/reel/(\d+)", value)
+    if match:
+        return f"https://www.facebook.com/watch/?v={match.group(1)}"
+    if any(marker in value for marker in ("/share/", "fb.me/")):
+        try:
+            import requests
+
+            proxy = normalize_proxy(db.get_setting("proxy", ""))
+            kwargs = {"allow_redirects": True, "timeout": 25}
+            if proxy:
+                kwargs["proxies"] = {"http": proxy, "https": proxy}
+            final_url = requests.get(value, **kwargs).url
+        except Exception:  # noqa: BLE001
+            return value
+        match = (
+            re.search(r"/reel/(\d+)", final_url)
+            or re.search(r"/videos/(\d+)", final_url)
+            or re.search(r"[?&]v=(\d+)", final_url)
+        )
+        if match:
+            return f"https://www.facebook.com/watch/?v={match.group(1)}"
+        return final_url
+    return value
+
+
 def _looks_like_comment(node):
     body = node.get("body")
     return (
@@ -245,7 +273,7 @@ def _find_comments_request(driver):
         if "/api/graphql" not in request.url or request.method != "POST" or not request.body:
             continue
         text = _decode_body(request.response.body) if request.response is not None else ""
-        if "comment_rendering_instance_for_feed_location" not in text:
+        if "comment_rendering_instance" not in text:
             continue
         try:
             payload = json.loads(text.split("\n")[0])
@@ -253,6 +281,8 @@ def _find_comments_request(driver):
             continue
         comments = _comments_node(payload)
         edges = comments.get("edges") or []
+        if not edges:
+            continue
         if best is None or len(edges) > len(best[3]):
             form = {key: values[0] for key, values in parse_qs(request.body.decode("utf-8", "replace")).items()}
             try:
@@ -312,7 +342,10 @@ def run_comments(job):
 
     db.update_job(job["id"], status="running", started_at=time.strftime("%Y-%m-%d %H:%M:%S"), log_path=log_path)
     limit = max(1, int(job["posts_limit"]))
-    url = build_post_url(job["target"])
+    url = resolve_post_url(job["target"])
+    if url != job["target"]:
+        db.update_job(job["id"], target=url)
+        job = db.get_job(job["id"])
 
     from fb_graphql_scraper.base.base_page import BasePage
 
